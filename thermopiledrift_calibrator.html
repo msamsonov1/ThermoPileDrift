@@ -1,0 +1,1508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ThermopileDrift: Lunar Surface Heat-Flow Probe Sensor Calibrator</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- MathJax Configuration (Bulletproof MathJax v3) -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <!-- Custom Fonts & Styling -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #03050a;
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .formula-box {
+      background-color: #020712;
+      border: 1px solid #1e293b;
+      box-shadow: inset 0 0 16px rgba(6, 182, 212, 0.04);
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #03050a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #06b6d4;
+    }
+    .radar-pulse {
+      box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.7);
+      animation: pulse-cyan 2s infinite cubic-bezier(0.66, 0, 0, 1);
+    }
+    @keyframes pulse-cyan {
+      to {
+        box-shadow: 0 0 0 12px rgba(6, 182, 212, 0);
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#03050a]">
+
+  <!-- Top Navigation Bar -->
+  <header class="border-b border-gray-800/80 bg-[#060a14]/90 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-cyan-600 to-violet-600 flex items-center justify-center p-2 text-white shadow-lg shadow-cyan-900/40">
+          <i data-lucide="compass" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-base tracking-wide text-white">ThermopileDrift</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono">v4.2-LUNAR</span>
+          </div>
+          <p class="text-[11px] text-gray-400 font-mono">Sub-mK Geothermal Gradient In-Situ Calibrator</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center space-x-1 sm:space-x-2 bg-gray-950/80 p-1.5 rounded-xl border border-gray-800/80 text-xs sm:text-sm font-medium">
+        <button id="tabBtnSim" onclick="switchTab('sim')" class="px-3.5 py-1.5 rounded-lg transition-all flex items-center space-x-2 text-cyan-300 bg-cyan-950/70 border border-cyan-800/60 shadow-sm shadow-cyan-900/30">
+          <i data-lucide="activity" class="w-4 h-4"></i>
+          <span>Live Telemetry</span>
+        </button>
+        <button id="tabBtnPhysics" onclick="switchTab('physics')" class="px-3.5 py-1.5 rounded-lg transition-all flex items-center space-x-2 text-gray-400 hover:text-gray-200 hover:bg-gray-900/60">
+          <i data-lucide="cpu" class="w-4 h-4"></i>
+          <span>Core Physics</span>
+        </button>
+        <button id="tabBtnProposal" onclick="switchTab('proposal')" class="px-3.5 py-1.5 rounded-lg transition-all flex items-center space-x-2 text-gray-400 hover:text-gray-200 hover:bg-gray-900/60">
+          <i data-lucide="file-text" class="w-4 h-4"></i>
+          <span>NASA Proposal</span>
+        </button>
+        <button id="tabBtnARR" onclick="switchTab('arr')" class="px-3.5 py-1.5 rounded-lg transition-all flex items-center space-x-2 text-gray-400 hover:text-gray-200 hover:bg-gray-900/60">
+          <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+          <span>Commercial ARR</span>
+        </button>
+      </nav>
+
+      <!-- Status Header Badge -->
+      <div class="hidden lg:flex items-center space-x-3">
+        <div class="flex items-center space-x-2 bg-emerald-950/60 border border-emerald-800/60 px-3 py-1 rounded-full text-emerald-400 text-xs font-mono">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span id="globalSysStatus">AUTONOMOUS OBSERVER: ONLINE</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <!-- ======================================================== -->
+    <!-- TAB 1: LIVE SIMULATION & TELEMETRY HUD                  -->
+    <!-- ======================================================== -->
+    <div id="viewSim" class="space-y-6">
+      
+      <!-- Top HUD KPI Strip -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 font-mono">
+        <div class="bg-gray-900/40 border border-gray-800 rounded-xl p-3.5 backdrop-blur-md">
+          <div class="text-[11px] text-gray-400 flex items-center justify-between">
+            <span>NEEDLE TEMPERATURE ($T$)</span>
+            <i data-lucide="thermometer" class="w-3.5 h-3.5 text-cyan-400"></i>
+          </div>
+          <div class="mt-1 flex items-baseline space-x-2">
+            <span id="kpiTemp" class="text-2xl font-bold text-white tracking-tight">42.15</span>
+            <span class="text-xs text-cyan-400 font-semibold">K</span>
+          </div>
+          <div class="text-[10px] text-gray-500 mt-1">Lunar PSR Regolith (~3m depth)</div>
+        </div>
+
+        <div class="bg-gray-900/40 border border-gray-800 rounded-xl p-3.5 backdrop-blur-md">
+          <div class="text-[11px] text-gray-400 flex items-center justify-between">
+            <span>MEASURED RESISTANCE ($R$)</span>
+            <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-400"></i>
+          </div>
+          <div class="mt-1 flex items-baseline space-x-2">
+            <span id="kpiResistance" class="text-2xl font-bold text-amber-400 tracking-tight">120.48</span>
+            <span class="text-xs text-amber-300 font-semibold">$\Omega$</span>
+          </div>
+          <div class="text-[10px] text-gray-500 mt-1">Leg bulk + Contact Lead $R_c$</div>
+        </div>
+
+        <div class="bg-gray-900/40 border border-gray-800 rounded-xl p-3.5 backdrop-blur-md">
+          <div class="text-[11px] text-gray-400 flex items-center justify-between">
+            <span>PARASITIC LEAD RESISTANCE ($\Delta R_p$)</span>
+            <i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-rose-400"></i>
+          </div>
+          <div class="mt-1 flex items-baseline space-x-2">
+            <span id="kpiLeadDrift" class="text-2xl font-bold text-rose-400 tracking-tight">+0.00</span>
+            <span class="text-xs text-rose-300 font-semibold">$\Omega$</span>
+          </div>
+          <div class="text-[10px] text-gray-500 mt-1">Thermal & radiation strain drift</div>
+        </div>
+
+        <div class="bg-gray-900/40 border border-gray-800 rounded-xl p-3.5 backdrop-blur-md">
+          <div class="text-[11px] text-gray-400 flex items-center justify-between">
+            <span>GEOTHERMAL ACCURACY ($\delta T$)</span>
+            <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i>
+          </div>
+          <div class="mt-1 flex items-baseline space-x-2">
+            <span id="kpiAccuracy" class="text-2xl font-bold text-emerald-400 tracking-tight">0.18</span>
+            <span class="text-xs text-emerald-300 font-semibold">mK</span>
+          </div>
+          <div class="text-[10px] text-emerald-500/80 mt-1 font-semibold">Sub-mK target achieved (&lt; 1.0 mK)</div>
+        </div>
+      </div>
+
+      <!-- Main Visual Section: 2 Columns (Probe Canvas & Phase Space Plot) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Interactive Physical Probe Canvas (7 cols) -->
+        <div class="lg:col-span-7 bg-gray-900/40 border border-gray-800 rounded-2xl p-4 backdrop-blur-md flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center space-x-2">
+              <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+              <h3 class="text-sm font-semibold text-white tracking-wide">Lunar Sub-Surface Probe In-Situ Cross Section</h3>
+            </div>
+            <div class="flex items-center space-x-3 text-xs font-mono">
+              <span id="calibPulseIndicator" class="px-2 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700">PASSIVE HEAT FLUX MODE</span>
+            </div>
+          </div>
+
+          <div class="relative w-full h-[320px] bg-[#02050b] rounded-xl border border-gray-900 overflow-hidden">
+            <canvas id="probeCanvas" class="w-full h-full block"></canvas>
+            
+            <!-- Real-time HUD overlay on canvas -->
+            <div class="absolute bottom-2 left-3 text-[11px] font-mono text-gray-400 space-y-0.5 pointer-events-none">
+              <div>Regolith Cryo-Matrix: <span class="text-cyan-300">Shackleton Rim Crater Basin (PSR)</span></div>
+              <div>Thermocouple Nodes: <span class="text-emerald-400">24 Differential Bi₂Te₃/Sb₂Te₃ Thin-Films</span></div>
+              <div>Mechanical Strain: <span id="canvasStrainTxt" class="text-amber-400">124 $\mu\varepsilon$ (Needle Hammering Shock)</span></div>
+            </div>
+            
+            <div class="absolute top-2 right-3 font-mono text-right text-[10px] space-y-0.5 pointer-events-none">
+              <span class="px-2 py-0.5 rounded bg-black/60 border border-gray-800 text-gray-300">Peltier Isothermal Loop: <span id="hudLoopState" class="text-cyan-400 font-semibold">STANDBY</span></span>
+            </div>
+          </div>
+
+          <div class="mt-3 flex flex-wrap items-center justify-between text-xs text-gray-400 pt-2 border-t border-gray-800/80">
+            <div class="flex items-center space-x-4">
+              <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span><span>Needle Casing (Ti-6Al-4V)</span></span>
+              <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block"></span><span>Thermopile Junctions</span></span>
+              <span class="flex items-center space-x-1.5"><span class="w-2.5 h-2.5 rounded-full bg-violet-500 inline-block"></span><span>Isothermal Heat Sink Ring</span></span>
+            </div>
+            <span class="font-mono text-cyan-400 text-[11px]">Depth: 2.85 m Lunar Permafrost</span>
+          </div>
+        </div>
+
+        <!-- Primary Diagnostic Phase-Space Chart: T vs R (5 cols) -->
+        <div class="lg:col-span-5 bg-gray-900/40 border border-gray-800 rounded-2xl p-4 backdrop-blur-md flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <h3 class="text-sm font-semibold text-white tracking-wide">Phase-Space Diagnostics: $T$ vs $R$</h3>
+              <p class="text-[11px] text-gray-400">Real-time $(T, R)$ dynamic trajectory & hazard corridor</p>
+            </div>
+            <span class="text-[10px] font-mono text-cyan-400 border border-cyan-800/70 bg-cyan-950/60 px-2 py-0.5 rounded">
+              SEEKING ISOTHERM
+            </span>
+          </div>
+
+          <div class="relative w-full h-[320px]">
+            <canvas id="phaseSpaceChart"></canvas>
+          </div>
+
+          <div class="mt-2 text-[11px] font-mono flex items-center justify-between text-gray-400 border-t border-gray-800 pt-2">
+            <span class="flex items-center space-x-1">
+              <span class="w-2 h-0.5 bg-cyan-400 inline-block"></span>
+              <span>Nominal Callendar-Van Dusen</span>
+            </span>
+            <span class="flex items-center space-x-1">
+              <span class="w-2 h-0.5 bg-rose-500 inline-block"></span>
+              <span>Degradation Boundary (&gt; 0.5 $\Omega$)</span>
+            </span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Secondary Telemetry Plots -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Telemetry 1: Differential Heat Flux & Sub-mK Error -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-4 backdrop-blur-md">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xs font-semibold text-gray-300 font-mono flex items-center space-x-2">
+              <i data-lucide="trending-up" class="w-3.5 h-3.5 text-cyan-400"></i>
+              <span>IN-SITU TEMPERATURE GRADIENT RESIDUAL ($\Delta T$ ERROR)</span>
+            </h4>
+            <span class="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800">
+              FILTER ACTIVE
+            </span>
+          </div>
+          <div class="h-48 w-full">
+            <canvas id="telemetryGradientChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Telemetry 2: Parasitic Lead Resistance Compensation Trace -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-4 backdrop-blur-md">
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xs font-semibold text-gray-300 font-mono flex items-center space-x-2">
+              <i data-lucide="sliders" class="w-3.5 h-3.5 text-violet-400"></i>
+              <span>RECONSTRUCTED CONTACT RESISTANCE DRIFT ($R_{\text{lead}}$)</span>
+            </h4>
+            <span class="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800">
+              REAL-TIME SUBTRACTION
+            </span>
+          </div>
+          <div class="h-48 w-full">
+            <canvas id="telemetryDriftChart"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Closed-Loop Control & Fault Injection Console -->
+      <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 backdrop-blur-md">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 class="text-sm font-semibold text-white tracking-wide flex items-center space-x-2">
+              <i data-lucide="sliders-horizontal" class="w-4 h-4 text-cyan-400"></i>
+              <span>In-Situ Calibration Controller & Hardware Perturbation Deck</span>
+            </h3>
+            <p class="text-xs text-gray-400 mt-0.5">Control environmental lunar variables, inject mechanical hammering defects, and trigger isothermal correction.</p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button onclick="triggerAutoCalibrate()" class="px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-cyan-900/30 transition-all flex items-center space-x-2">
+              <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+              <span>Execute Isothermal Calibrator Cycle</span>
+            </button>
+            <button onclick="resetNominalBaseline()" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-mono transition-all">
+              Reset Baseline
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-3 border-t border-gray-800">
+          
+          <!-- Slider 1: Ambient Permafrost Temperature -->
+          <div class="space-y-2">
+            <div class="flex justify-between text-xs font-mono">
+              <span class="text-gray-400">Regolith Temperature ($T_{\text{amb}}$):</span>
+              <span id="sliderTempVal" class="text-cyan-400 font-bold">42.0 K</span>
+            </div>
+            <input id="sliderTemp" type="range" min="30" max="150" step="0.5" value="42" oninput="updateSliders()" class="w-full accent-cyan-400 bg-gray-800 h-1.5 rounded-lg appearance-none cursor-pointer">
+            <div class="flex justify-between text-[10px] text-gray-500 font-mono">
+              <span>30 K (Deep PSR)</span>
+              <span>150 K (Sub-surface)</span>
+            </div>
+          </div>
+
+          <!-- Slider 2: Cosmic Ray & Galactic Radiation Dose -->
+          <div class="space-y-2">
+            <div class="flex justify-between text-xs font-mono">
+              <span class="text-gray-400">Cumulative Radiation Dose:</span>
+              <span id="sliderRadVal" class="text-violet-400 font-bold">120 krad</span>
+            </div>
+            <input id="sliderRad" type="range" min="0" max="600" step="10" value="120" oninput="updateSliders()" class="w-full accent-violet-400 bg-gray-800 h-1.5 rounded-lg appearance-none cursor-pointer">
+            <div class="flex justify-between text-[10px] text-gray-500 font-mono">
+              <span>0 krad (Landing)</span>
+              <span>600 krad (10-Yr Artemis)</span>
+            </div>
+          </div>
+
+          <!-- Slider 3: Hammering Impact Micro-Strain -->
+          <div class="space-y-2">
+            <div class="flex justify-between text-xs font-mono">
+              <span class="text-gray-400">Hammering Micro-Strain ($\varepsilon_m$):</span>
+              <span id="sliderStrainVal" class="text-amber-400 font-bold">150 $\mu\varepsilon$</span>
+            </div>
+            <input id="sliderStrain" type="range" min="0" max="800" step="20" value="150" oninput="updateSliders()" class="w-full accent-amber-400 bg-gray-800 h-1.5 rounded-lg appearance-none cursor-pointer">
+            <div class="flex justify-between text-[10px] text-gray-500 font-mono">
+              <span>0 (Soft Regolith)</span>
+              <span>800 (Basalt Breccia)</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Fault Injection Quick Buttons -->
+        <div class="mt-4 pt-3 border-t border-gray-800/80 flex flex-wrap items-center gap-2">
+          <span class="text-xs font-mono text-gray-400 mr-2 flex items-center space-x-1">
+            <i data-lucide="flame" class="w-3.5 h-3.5 text-rose-400"></i>
+            <span>Inject Physical Stress:</span>
+          </span>
+          <button onclick="injectFault('strain_shock')" class="px-3 py-1 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 rounded-lg text-xs font-mono transition-all">
+            +350 $\mu\varepsilon$ Hammering Shock
+          </button>
+          <button onclick="injectFault('lead_corrosion')" class="px-3 py-1 bg-amber-950/40 hover:bg-amber-900/60 border border-amber-800/60 text-amber-300 rounded-lg text-xs font-mono transition-all">
+            +0.42 $\Omega$ Contact Delamination
+          </button>
+          <button onclick="injectFault('solar_flare')" class="px-3 py-1 bg-violet-950/40 hover:bg-violet-900/60 border border-violet-800/60 text-violet-300 rounded-lg text-xs font-mono transition-all">
+            SPE Radiation Surge (+200 krad)
+          </button>
+          <button onclick="toggleLoopCompensation()" id="btnCompensationMode" class="ml-auto px-3.5 py-1 bg-emerald-950/70 border border-emerald-700 text-emerald-300 rounded-lg text-xs font-mono transition-all flex items-center space-x-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span>Firmware Drift Subtraction: ENABLED</span>
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TAB 2: CORE PHYSICS & MATHEMATICAL MODEL                 -->
+    <!-- ======================================================== -->
+    <div id="viewPhysics" class="hidden space-y-6">
+      
+      <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-6 backdrop-blur-md">
+        <div class="max-w-3xl">
+          <span class="text-xs font-mono px-2.5 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800">THEORETICAL FOUNDATIONS</span>
+          <h2 class="text-2xl font-bold text-white mt-2">Planetary Geothermal Gradient & Thermoelectric Degradation Mechanics</h2>
+          <p class="text-sm text-gray-300 mt-2 leading-relaxed">
+            Planetary heat flow probes hammered into lunar polar permafrost measure minute vertical geothermal gradients ($\sim 1.5\text{ to }3.0\text{ K/m}$). Extracting heat flux requires sub-millikelvin precision ($&lt; 1.0\text{ mK}$). However, prolonged exposure to lunar radiation, cryogenic thermal cycling (30 K to 150 K), and violent vibrational shear during regolith hammering induce irreversible electrical contact degradation.
+          </p>
+        </div>
+      </div>
+
+      <!-- 4 Core Physics Formula Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <!-- Card 1: Governing Seebeck & Differential Heat Flux Equation -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur-md flex flex-col justify-between">
+          <div>
+            <div class="flex items-center space-x-2 text-cyan-400 mb-2">
+              <i data-lucide="flame" class="w-4 h-4"></i>
+              <h3 class="font-semibold text-white text-base">1. Thermopile Differential Seebeck Conversion</h3>
+            </div>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              The multi-junction differential thermopile generates an open-circuit voltage $V_{\text{out}}$ proportional to the vertical thermal difference $\Delta T = T_2 - T_1$ along the needle stem across $N$ thermocouple pairs with relative Seebeck coefficient $S_{AB}(T)$:
+            </p>
+
+            <div class="formula-box bg-gray-950 p-3 rounded-lg border border-gray-800 text-center text-cyan-300 text-sm overflow-x-auto my-3 font-mono">
+              $$V_{\text{out}} = N \int_{T_1}^{T_2} S_{AB}(T)\, dT \approx N \cdot S_{AB}(\bar{T}) \cdot \Delta T$$
+            </div>
+
+            <p class="text-xs text-gray-400 leading-relaxed">
+              Where $S_{AB}(\bar{T}) = S_A(\bar{T}) - S_B(\bar{T})$. For bismuth telluride ($\text{Bi}_2\text{Te}_3$) thin films at cryogenic lunar temperatures ($40\text{ K}$), $S_{AB} \approx 65\text{ }\mu\text{V/K}$. A $\Delta T$ of $1\text{ mK}$ generates an infinitesimal signal of only $65\text{ nV}$, making the readout exceptionally sensitive to series parasitic voltages and lead resistance imbalances.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-gray-500">
+            Governing Law: Onsager Reciprocal Relations in Non-Equilibrium Thermoelectrics
+          </div>
+        </div>
+
+        <!-- Card 2: Microscopic Resistance Degradation & Contact Strain -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur-md flex flex-col justify-between">
+          <div>
+            <div class="flex items-center space-x-2 text-violet-400 mb-2">
+              <i data-lucide="atom" class="w-4 h-4"></i>
+              <h3 class="font-semibold text-white text-base">2. Radiation Displacement & Contact Delamination</h3>
+            </div>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              The bulk thermocouple leg electrical resistance $R_{\text{meas}}$ comprises the intrinsic cryogenic resistance $R_0(T)$, radiation defect scattering $\Delta R_{\text{rad}}$, and mechanical strain-induced contact resistance $R_c$:
+            </p>
+
+            <div class="formula-box bg-gray-950 p-3 rounded-lg border border-gray-800 text-center text-cyan-300 text-sm overflow-x-auto my-3 font-mono">
+              $$R_{\text{meas}}(T, t) = R_0 \left(1 + \alpha (T - T_0) + \beta (T - T_0)^2\right) + \Phi_{\text{rad}}(t)\sigma_d \rho_0 + R_c(\varepsilon_m)$$
+            </div>
+
+            <p class="text-xs text-gray-400 leading-relaxed">
+              $\Phi_{\text{rad}}$ represents galactic cosmic ray (GCR) fluence, creating Frenkel vacancy-interstitial pairs that elevate electron scattering. $R_c(\varepsilon_m)$ is governed by Holm contact mechanics: micro-cracking and work-hardening at sputtered micro-junctions alter contact geometry under needle vibrational shock.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-gray-500">
+            Mechanics: Matthiessen’s Rule & Holm Constriction Resistance Formulation
+          </div>
+        </div>
+
+        <!-- Card 3: Diagnostic State Observer & Boundary Inversion Algorithm -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur-md flex flex-col justify-between">
+          <div>
+            <div class="flex items-center space-x-2 text-emerald-400 mb-2">
+              <i data-lucide="code" class="w-4 h-4"></i>
+              <h3 class="font-semibold text-white text-base">3. Isothermal Boundary Inversion & Lead Subtraction</h3>
+            </div>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              During scheduled calibration, micro-Peltier elements clamp the needle isothermal ($\Delta T \to 0$), driving Seebeck EMF to zero while probing the two-wire and four-wire excitation response across known temperature boundaries $T_{\text{ref}}$:
+            </p>
+
+            <div class="formula-box bg-gray-950 p-3 rounded-lg border border-gray-800 text-center text-cyan-300 text-sm overflow-x-auto my-3 font-mono">
+              $$\hat{R}_p(t) = R_{\text{meas}}(T_{\text{iso}}, t) - R_{\text{nom}}(T_{\text{iso}}); \quad \Delta T_{\text{corrected}} = \frac{V_{\text{meas}} - I_{\text{bias}}\hat{R}_p}{N \cdot S_{AB}(T_{\text{iso}})}$$
+            </div>
+
+            <p class="text-xs text-gray-400 leading-relaxed">
+              By mapping the measured slope $\left(\frac{\partial R}{\partial T}\right)$ against pristine Callendar-Van Dusen polynomials, the firmware decouples intrinsic temperature shifts from extrinsic contact delamination, isolating $\hat{R}_p$ without requiring mechanical probe extraction.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-gray-500">
+            Algorithm: Extended Kalman State Observer with Parameter Tracking
+          </div>
+        </div>
+
+        <!-- Card 4: Sensor Needle Microfabrication & Cryogenic Substrate -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur-md flex flex-col justify-between">
+          <div>
+            <div class="flex items-center space-x-2 text-amber-400 mb-2">
+              <i data-lucide="layers" class="w-4 h-4"></i>
+              <h3 class="font-semibold text-white text-base">4. Thin-Film Needle Sensor Architecture</h3>
+            </div>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              The probe consists of a 15-mm diameter grade-5 titanium penetrator needle with a flexible polyimide (Kapton HN) substrate micro-patterned via magnetron sputtering:
+            </p>
+
+            <div class="formula-box bg-gray-950 p-3 rounded-lg border border-gray-800 text-center text-cyan-300 text-sm overflow-x-auto my-3 font-mono">
+              $$k_{\text{eff}} = \frac{d_1 k_{\text{ti}} + d_2 k_{\text{poly}} + d_3 k_{\text{regolith}}}{d_1 + d_2 + d_3} \approx 0.014\text{ W}\cdot\text{m}^{-1}\cdot\text{K}^{-1}$$
+            </div>
+
+            <p class="text-xs text-gray-400 leading-relaxed">
+              Thermal conductivity matching minimizes the thermal shunt artifact along the drill borehole. Gold-flashed platinum diffusion barriers ($50\text{ nm}$) prevent interdiffusion of antimony and copper leads over a 10-year surface operational lifetime.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-gray-500">
+            Hardware: 24-Junction Bi₂Te₃/Sb₂Te₃ Sputtered Thin-Film on Kapton HN
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TAB 3: NASA SBIR/STTR PROPOSAL & HARDWARE TRANSITION     -->
+    <!-- ======================================================== -->
+    <div id="viewProposal" class="hidden space-y-6">
+      
+      <!-- Solicitation Header -->
+      <div class="bg-gradient-to-r from-gray-950 via-gray-900 to-cyan-950/40 border border-gray-800 rounded-2xl p-6 backdrop-blur-md">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center space-x-2 font-mono text-xs text-cyan-400 mb-1">
+              <span>NASA SBIR/STTR SOLICITATION 2026-I</span>
+              <span>•</span>
+              <span>TOPIC: S1.02-3904</span>
+            </div>
+            <h2 class="text-2xl font-bold text-white">Autonomous Drift-Correcting Planetary Heat-Flow Probe Firmware</h2>
+            <p class="text-sm text-gray-300 mt-1 max-w-2xl">
+              Sub-Millikelvin In-Situ Geothermal Gradient Extraction for Artemis Permanent Shadowed Regions (PSR) and Commercial Lunar Payload Services (CLPS) Landers.
+            </p>
+          </div>
+          <div class="text-right font-mono bg-gray-950/80 p-4 rounded-xl border border-gray-800">
+            <div class="text-xs text-gray-400">PHASE I DURATION & BUDGET</div>
+            <div class="text-2xl font-bold text-cyan-400">$225,000</div>
+            <div class="text-[11px] text-gray-500">6 Months Period of Performance</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Partner Institution & STTR Subcontract -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur-md flex flex-col justify-between">
+          <div>
+            <div class="flex items-center space-x-2 text-amber-400 mb-2">
+              <i data-lucide="landmark" class="w-4 h-4"></i>
+              <h3 class="text-sm font-semibold text-white">Research Institution Partner</h3>
+            </div>
+            <p class="text-sm font-semibold text-gray-200">University of Central Florida (UCF)</p>
+            <p class="text-xs text-cyan-400 font-mono mt-0.5">Center for Advanced Turbomachinery & Energy Research (CATER) & Florida Space Institute (FSI)</p>
+            <p class="text-xs text-gray-400 mt-3 leading-relaxed">
+              UCF provides cryogenic thermal-vacuum simulation chambers (10⁻⁷ Torr, 25 K to 300 K) with lunar regolith simulant LHS-1 under deep cryogenic vacuum.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 flex items-center justify-between text-xs font-mono">
+            <span class="text-gray-400">STTR Allocation:</span>
+            <span class="text-emerald-400 font-bold">30.0% ($67,500)</span>
+          </div>
+        </div>
+
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur-md flex flex-col justify-between">
+          <div>
+            <div class="flex items-center space-x-2 text-violet-400 mb-2">
+              <i data-lucide="target" class="w-4 h-4"></i>
+              <h3 class="text-sm font-semibold text-white">Target NASA Missions</h3>
+            </div>
+            <div class="space-y-2 mt-2">
+              <div class="text-xs bg-gray-950 p-2 rounded-lg border border-gray-800 font-mono">
+                <div class="text-cyan-300 font-bold">Artemis III / IV / V Lunar Basecamp</div>
+                <div class="text-[10px] text-gray-400">Volatiles & heat-leak assessment in PSRs</div>
+              </div>
+              <div class="text-xs bg-gray-950 p-2 rounded-lg border border-gray-800 font-mono">
+                <div class="text-cyan-300 font-bold">CLPS Payloads (Astrobotic, Intuitive Machines)</div>
+                <div class="text-[10px] text-gray-400">Autonomous drill-deployed geothermal needles</div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-gray-400">
+            Lead Directorate: NASA Science Mission Directorate (SMD)
+          </div>
+        </div>
+
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur-md flex flex-col justify-between">
+          <div>
+            <div class="flex items-center space-x-2 text-cyan-400 mb-2">
+              <i data-lucide="cpu" class="w-4 h-4"></i>
+              <h3 class="text-sm font-semibold text-white">Phase II Transition Track</h3>
+            </div>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              Seamless advancement to 24-month Phase II ($1,050,000) for radiation-hardened ASIC integration and micro-Peltier flight-qualified needle testing at NASA Glenn Plum Brook Cryo-Vacuum facility.
+            </p>
+            <div class="mt-3 p-2 bg-gray-950 rounded-lg border border-gray-800 text-xs font-mono space-y-1">
+              <div class="text-gray-400">TRL Progression: <span class="text-emerald-400 font-bold">TRL 3 $\to$ TRL 6</span></div>
+              <div class="text-gray-400">Target Mass: <span class="text-white font-bold">&lt; 380 grams</span> (probe needle)</div>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-cyan-400">
+            Phase II SBIR/STTR Expansion Pool: $850k - $1.2M
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 6-Month Work Breakdown & Milestones -->
+      <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur-md">
+        <h3 class="text-sm font-semibold text-white mb-4 flex items-center space-x-2">
+          <i data-lucide="calendar" class="w-4 h-4 text-cyan-400"></i>
+          <span>Phase I Detailed Work Breakdown Schedule (Months 1–6)</span>
+        </h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          
+          <div class="bg-gray-950/80 border border-gray-800 rounded-xl p-4 font-mono">
+            <div class="text-xs text-cyan-400 font-bold mb-1">MILESTONE 1 (M1–M2)</div>
+            <h4 class="text-sm font-semibold text-white mb-2">Cryogenic Non-Linear Model</h4>
+            <p class="text-xs text-gray-400 leading-relaxed font-sans">
+              Formulate 3D finite-element coupled thermal-electrical model of thin-film $\text{Bi}_2\text{Te}_3$ legs under 30–150 K conditions, incorporating Matthiessen strain tensors.
+            </p>
+            <div class="mt-3 text-[10px] text-gray-500 border-t border-gray-800/80 pt-2">Deliverable: Verified OpenFOAM & MATLAB Kinematics</div>
+          </div>
+
+          <div class="bg-gray-950/80 border border-gray-800 rounded-xl p-4 font-mono">
+            <div class="text-xs text-cyan-400 font-bold mb-1">MILESTONE 2 (M3–M4)</div>
+            <h4 class="text-sm font-semibold text-white mb-2">State Observer Inversion Code</h4>
+            <p class="text-xs text-gray-400 leading-relaxed font-sans">
+              Develop recursive extended Kalman filtering (EKF) algorithm capable of isolating $R_c$ lead resistance drift down to $0.005\text{ }\Omega$ without external calibration baths.
+            </p>
+            <div class="mt-3 text-[10px] text-gray-500 border-t border-gray-800/80 pt-2">Deliverable: ANSI C99 Microcontroller Firmware</div>
+          </div>
+
+          <div class="bg-gray-950/80 border border-gray-800 rounded-xl p-4 font-mono">
+            <div class="text-xs text-cyan-400 font-bold mb-1">MILESTONE 3 (M5)</div>
+            <h4 class="text-sm font-semibold text-white mb-2">UCF Cryo-Vacuum Bench Testing</h4>
+            <p class="text-xs text-gray-400 leading-relaxed font-sans">
+              Hardware-in-the-loop validation inside UCF CATER thermal-vacuum testbench using cryogenic LHS-1 lunar permafrost simulant under mechanical vibration excitation.
+            </p>
+            <div class="mt-3 text-[10px] text-gray-500 border-t border-gray-800/80 pt-2">Deliverable: Sub-mK Accuracy Validation Report</div>
+          </div>
+
+          <div class="bg-gray-950/80 border border-gray-800 rounded-xl p-4 font-mono">
+            <div class="text-xs text-cyan-400 font-bold mb-1">MILESTONE 4 (M6)</div>
+            <h4 class="text-sm font-semibold text-white mb-2">Phase II Transition Roadmap</h4>
+            <p class="text-xs text-gray-400 leading-relaxed font-sans">
+              Finalize rad-hard FPGA architecture (Microchip RTG4), radiation hardness assurance (RHA) test protocols for 100 krad TID, and commercialization agreement.
+            </p>
+            <div class="mt-3 text-[10px] text-gray-500 border-t border-gray-800/80 pt-2">Deliverable: NASA Phase II Proposal & Tech Package</div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TAB 4: COMMERCIAL & NATIONWIDE ARR BREAKDOWN            -->
+    <!-- ======================================================== -->
+    <div id="viewARR" class="hidden space-y-6">
+      
+      <!-- Executive Summary Card -->
+      <div class="bg-gradient-to-r from-gray-950 via-gray-900 to-cyan-950/40 border border-gray-800 rounded-2xl p-6 backdrop-blur-md">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <span class="text-xs font-mono px-2.5 py-1 rounded bg-cyan-950 text-cyan-400 border border-cyan-800">COMMERCIALIZATION ENGINE</span>
+            <h2 class="text-2xl font-bold text-white mt-2">Civil & Dual-Use Commercial Market: $218.4M Nationwide ARR</h2>
+            <p class="text-sm text-gray-300 mt-1 max-w-3xl">
+              ThermopileDrift's autonomous state-observer mathematical algorithm directly translates from lunar cryo-needles to high-value terrestrial and civil sectors where harsh thermal cycling and vibration destroy thermocouple calibration.
+            </p>
+          </div>
+          <div class="bg-gray-950/80 border border-cyan-800/60 p-4 rounded-xl font-mono text-right">
+            <div class="text-xs text-gray-400">ENTERPRISE VALUATION (10x MULTIPLE)</div>
+            <div class="text-2xl font-bold text-cyan-400">$2.18 Billion</div>
+            <div class="text-[11px] text-emerald-400 font-semibold">Tier-1 Deep-Tech SaaS Recurring Model</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Nationwide ARR Table -->
+      <div class="bg-gray-900/40 border border-gray-800 rounded-2xl overflow-hidden backdrop-blur-md">
+        <div class="p-4 border-b border-gray-800">
+          <h3 class="text-sm font-semibold text-white">Commercial Software Runtime & In-Situ Firmware Licensing</h3>
+          <p class="text-xs text-gray-400">Calculated across 6 target civil verticals nationwide with addressable asset bases.</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left font-mono text-xs">
+            <thead class="bg-gray-950/80 text-gray-400 uppercase text-[11px] border-b border-gray-800">
+              <tr>
+                <th class="py-3 px-4">Civil Commercial Vertical</th>
+                <th class="py-3 px-4">Primary Application</th>
+                <th class="py-3 px-4">SaaS / Runtime Pricing Metric</th>
+                <th class="py-3 px-4">Nationwide Asset Base</th>
+                <th class="py-3 px-4 text-right">Mature ARR ($M)</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-800/60 text-gray-300">
+              <tr class="hover:bg-gray-800/30 transition-all">
+                <td class="py-3.5 px-4 font-semibold text-white flex items-center space-x-2">
+                  <i data-lucide="zap" class="w-3.5 h-3.5 text-cyan-400"></i>
+                  <span>Superconducting Quantum Computing</span>
+                </td>
+                <td class="py-3.5 px-4 font-sans text-xs">Millikelvin dilution refrigerator thermal profiling</td>
+                <td class="py-3.5 px-4 text-cyan-300">$18,500 / cryostat-year</td>
+                <td class="py-3.5 px-4">2,400 Cryostats</td>
+                <td class="py-3.5 px-4 text-right font-bold text-white">$44.4M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/30 transition-all">
+                <td class="py-3.5 px-4 font-semibold text-white flex items-center space-x-2">
+                  <i data-lucide="cpu" class="w-3.5 h-3.5 text-violet-400"></i>
+                  <span>Semiconductor EUV Lithography</span>
+                </td>
+                <td class="py-3.5 px-4 font-sans text-xs">High-NA wafer stage thermal-expansion monitoring</td>
+                <td class="py-3.5 px-4 text-cyan-300">$65,000 / scanner-year</td>
+                <td class="py-3.5 px-4">820 EUV Tools</td>
+                <td class="py-3.5 px-4 text-right font-bold text-white">$53.3M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/30 transition-all">
+                <td class="py-3.5 px-4 font-semibold text-white flex items-center space-x-2">
+                  <i data-lucide="flame" class="w-3.5 h-3.5 text-amber-400"></i>
+                  <span>Deep Geothermal Energy Wells</span>
+                </td>
+                <td class="py-3.5 px-4 font-sans text-xs">Enhanced Geothermal (EGS) downhole drill bit telemetry</td>
+                <td class="py-3.5 px-4 text-cyan-300">$12,000 / wellhead-year</td>
+                <td class="py-3.5 px-4">3,800 Wells</td>
+                <td class="py-3.5 px-4 text-right font-bold text-white">$45.6M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/30 transition-all">
+                <td class="py-3.5 px-4 font-semibold text-white flex items-center space-x-2">
+                  <i data-lucide="plane" class="w-3.5 h-3.5 text-blue-400"></i>
+                  <span>Commercial Aviation Turbofans</span>
+                </td>
+                <td class="py-3.5 px-4 font-sans text-xs">Turbine blade pyrometer & casing thermopile calibration</td>
+                <td class="py-3.5 px-4 text-cyan-300">$2,400 / engine-year</td>
+                <td class="py-3.5 px-4">16,500 Turbofans</td>
+                <td class="py-3.5 px-4 text-right font-bold text-white">$39.6M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/30 transition-all">
+                <td class="py-3.5 px-4 font-semibold text-white flex items-center space-x-2">
+                  <i data-lucide="battery-charging" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <span>Cryogenic LNG & Liquid H₂ Transport</span>
+                </td>
+                <td class="py-3.5 px-4 font-sans text-xs">LH₂ super-insulated vacuum piping heat-ingress alarms</td>
+                <td class="py-3.5 px-4 text-cyan-300">$7,500 / terminal facility</td>
+                <td class="py-3.5 px-4">2,600 Transport Nodes</td>
+                <td class="py-3.5 px-4 text-right font-bold text-white">$19.5M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/30 transition-all">
+                <td class="py-3.5 px-4 font-semibold text-white flex items-center space-x-2">
+                  <i data-lucide="satellite" class="w-3.5 h-3.5 text-rose-400"></i>
+                  <span>Commercial LEO Mega-Constellations</span>
+                </td>
+                <td class="py-3.5 px-4 font-sans text-xs">Autonomous satellite battery & optical sensor thermal stabilization</td>
+                <td class="py-3.5 px-4 text-cyan-300">$1,600 / bus-year</td>
+                <td class="py-3.5 px-4">10,000 Spacecraft</td>
+                <td class="py-3.5 px-4 text-right font-bold text-white">$16.0M</td>
+              </tr>
+              <tr class="bg-gray-950 font-bold text-cyan-400 border-t-2 border-gray-800">
+                <td colspan="4" class="py-3 px-4 text-right">TOTAL ADDRESSABLE DOMESTIC ANNUAL RECURRING REVENUE (ARR):</td>
+                <td class="py-3 px-4 text-right text-base text-cyan-300">$218.4M</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Industry Deep-Dive Cards: Physics + Executive Contrast -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <!-- Deep Dive 1: Quantum Cryostats -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur-md">
+          <div class="flex items-center space-x-2 text-cyan-400 mb-2 font-mono text-sm font-semibold">
+            <i data-lucide="zap" class="w-4 h-4"></i>
+            <span>Superconducting Quantum Computing Dilution Fridges</span>
+          </div>
+          <div class="space-y-3 mt-3">
+            <div>
+              <span class="text-[11px] font-mono text-cyan-300 uppercase tracking-wider block font-bold">Physics in 1 Sentence:</span>
+              <p class="text-xs text-gray-300 mt-0.5 leading-relaxed">
+                Contact work-hardening shifts the millikelvin electrical resistance of wire harnesses, masking qubit thermal photon leakage as fake decoherence noise.
+              </p>
+            </div>
+            <div class="border-t border-gray-800 pt-2">
+              <span class="text-[11px] font-mono text-amber-400 uppercase tracking-wider block font-bold">Why Incumbents Missed This (Plain English):</span>
+              <p class="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                Quantum lab technicians shut down cryostats for 3-week warm-up cycles to manually re-calibrate cables with lock-in amplifiers; our algorithm tracks lead resistance changes in firmware while the fridge stays continuously cold at 15 mK.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Deep Dive 2: Semiconductor Litho -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur-md">
+          <div class="flex items-center space-x-2 text-violet-400 mb-2 font-mono text-sm font-semibold">
+            <i data-lucide="cpu" class="w-4 h-4"></i>
+            <span>Semiconductor High-NA EUV Scanner Stages</span>
+          </div>
+          <div class="space-y-3 mt-3">
+            <div>
+              <span class="text-[11px] font-mono text-cyan-300 uppercase tracking-wider block font-bold">Physics in 1 Sentence:</span>
+              <p class="text-xs text-gray-300 mt-0.5 leading-relaxed">
+                High-energy 13.5 nm plasma radiation causes gradual point-defect scattering in wafer-chuck thermopiles, resulting in sub-nanometer overlay positioning registration drift.
+              </p>
+            </div>
+            <div class="border-t border-gray-800 pt-2">
+              <span class="text-[11px] font-mono text-amber-400 uppercase tracking-wider block font-bold">Why Incumbents Missed This (Plain English):</span>
+              <p class="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                Foundries discard whole multi-million dollar sensor chucks during scheduled fab overhauls; our dynamic inversion software mathematically zeroes radiation resistance drift in real-time, preserving wafer yield without hardware swaps.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Deep Dive 3: Geothermal Drilling -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur-md">
+          <div class="flex items-center space-x-2 text-amber-400 mb-2 font-mono text-sm font-semibold">
+            <i data-lucide="flame" class="w-4 h-4"></i>
+            <span>Enhanced Geothermal System (EGS) Downhole Probes</span>
+          </div>
+          <div class="space-y-3 mt-3">
+            <div>
+              <span class="text-[11px] font-mono text-cyan-300 uppercase tracking-wider block font-bold">Physics in 1 Sentence:</span>
+              <p class="text-xs text-gray-300 mt-0.5 leading-relaxed">
+                Aggressive drill vibrations in fractured granite mechanically stretch thermocouple lead junctions, shifting nominal resistance by up to 1.8 $\Omega$ and misidentifying fracture heat zones.
+              </p>
+            </div>
+            <div class="border-t border-gray-800 pt-2">
+              <span class="text-[11px] font-mono text-amber-400 uppercase tracking-wider block font-bold">Why Incumbents Missed This (Plain English):</span>
+              <p class="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                Operators assume downhole telemetry drifts solely due to rock temperature changes, wasting millions drilling dry fractures; our software isolates parasitic mechanical strain from authentic geothermal energy in seconds.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Deep Dive 4: Liquid Hydrogen Infrastructure -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 backdrop-blur-md">
+          <div class="flex items-center space-x-2 text-emerald-400 mb-2 font-mono text-sm font-semibold">
+            <i data-lucide="battery-charging" class="w-4 h-4"></i>
+            <span>Liquid Hydrogen (LH₂) Transport & Airport Hubs</span>
+          </div>
+          <div class="space-y-3 mt-3">
+            <div>
+              <span class="text-[11px] font-mono text-cyan-300 uppercase tracking-wider block font-bold">Physics in 1 Sentence:</span>
+              <p class="text-xs text-gray-300 mt-0.5 leading-relaxed">
+                20 K cryogenic embrittlement at lead solder joints degrades contact resistivity, producing false boil-off alarms in vacuum-jacketed transfer pipelines.
+              </p>
+            </div>
+            <div class="border-t border-gray-800 pt-2">
+              <span class="text-[11px] font-mono text-amber-400 uppercase tracking-wider block font-bold">Why Incumbents Missed This (Plain English):</span>
+              <p class="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                Fuel handlers tear down vacuum insulation jackets whenever temperature alarms flag anomalous resistance; our digital calibrator confirms whether the vacuum actually broke or if the lead wire merely suffered contact strain.
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Direct Contact Call-to-Action -->
+      <div class="bg-gradient-to-r from-gray-950 via-gray-900 to-cyan-950/70 border border-cyan-800/80 rounded-2xl p-6 backdrop-blur-md text-center">
+        <h3 class="text-xl font-bold text-white">License the In-Situ Calibration Runtime or Partner for Phase II</h3>
+        <p class="text-xs text-gray-400 mt-1 max-w-xl mx-auto">
+          Compatible with Texas Instruments ADS124S08, Analog Devices AD7124, and rad-hard FPGA platforms. Ready for evaluation licenses and flight hardware integration.
+        </p>
+        <div class="mt-4 flex items-center justify-center space-x-4">
+          <a href="mailto:support@rfwavecode.com" class="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-cyan-900/40 transition-all flex items-center space-x-2">
+            <i data-lucide="mail" class="w-4 h-4"></i>
+            <span>Contact Core Engineering Team</span>
+          </a>
+          <span class="text-xs font-mono text-gray-400">Direct Inquiries: <span class="text-cyan-300">support@rfwavecode.com</span></span>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-gray-800/80 bg-[#020409] py-4 text-center text-xs font-mono text-gray-500">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <div>ThermopileDrift • NASA Planetary Geophysics / In-Situ Geothermal Gradient Extraction</div>
+      <div class="flex items-center space-x-4">
+        <span>Artemis PSR Compatible</span>
+        <span>•</span>
+        <a href="mailto:support@rfwavecode.com" class="text-cyan-400 hover:underline">support@rfwavecode.com</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ======================================================== -->
+  <!-- JAVASCRIPT SIMULATION ENGINE & LOGIC                     -->
+  <!-- ======================================================== -->
+  <script>
+    // --- Global State & Diagnostic Variables ---
+    const state = {
+      // Physical Variables
+      temp: 42.0,            // Kelvin (Lunar Permafrost PSR)
+      radiationDose: 120.0,  // krad
+      hammerStrain: 150.0,   // micro-strain
+      
+      // Nominal Calibration Coefficients (Callendar-Van Dusen)
+      R0: 100.0,             // Ohms at reference T0 (0 K ideal or standard baseline)
+      alpha: 0.00385,        // TCR
+      beta: -5.7e-7,         // Non-linear cryogenic correction
+      seebeck_S_AB: 65e-6,   // V/K (65 microvolts per K)
+      numJunctions: 24,      // 24 thermocouple pairs
+
+      // Parasitic Deviations (Injected or Accumulated)
+      leadDrift: 0.0,        // Ohms (Parasitic contact lead degradation)
+      subtractionActive: true, // Closed-loop state observer on/off
+      isCalibrating: false,  // Active isothermal pulse
+      calibTimer: 0,
+
+      // Time tracking
+      simTick: 0,
+      historyLength: 40,
+      timeLabels: [],
+      errorHistory: [],
+      driftHistory: []
+    };
+
+    // --- Tab Mapping Dictionary ---
+    const tabMapping = {
+      'sim': { viewId: 'viewSim', btnId: 'tabBtnSim' },
+      'physics': { viewId: 'viewPhysics', btnId: 'tabBtnPhysics' },
+      'proposal': { viewId: 'viewProposal', btnId: 'tabBtnProposal' },
+      'arr': { viewId: 'viewARR', btnId: 'tabBtnARR' }
+    };
+
+    function switchTab(tabKey) {
+      Object.keys(tabMapping).forEach(key => {
+        const item = tabMapping[key];
+        const viewEl = document.getElementById(item.viewId);
+        const btnEl = document.getElementById(item.btnId);
+
+        if (key === tabKey) {
+          viewEl.classList.remove('hidden');
+          btnEl.className = "px-3.5 py-1.5 rounded-lg transition-all flex items-center space-x-2 text-cyan-300 bg-cyan-950/70 border border-cyan-800/60 shadow-sm shadow-cyan-900/30";
+        } else {
+          viewEl.classList.add('hidden');
+          btnEl.className = "px-3.5 py-1.5 rounded-lg transition-all flex items-center space-x-2 text-gray-400 hover:text-gray-200 hover:bg-gray-900/60";
+        }
+      });
+
+      // Typeset formulas when tab becomes visible
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise();
+      }
+
+      // Re-trigger layout adjustments for canvas and charts if switching to sim
+      if (tabKey === 'sim') {
+        resizeCanvas();
+        if (phaseChart) phaseChart.resize();
+        if (gradientChart) gradientChart.resize();
+        if (driftChart) driftChart.resize();
+      }
+    }
+
+    // --- Core Mathematical Formula Functions ---
+    // Pure nominal resistance as a function of temperature T (Kelvin)
+    function calcNominalR(T) {
+      // Cryogenic polynomial approximation for thin-film thermopile leg
+      return state.R0 * (1 + state.alpha * (T - 20) + state.beta * Math.pow(T - 20, 2));
+    }
+
+    // Actual bulk resistance with radiation & strain defects
+    function calcDegradedR(T, rad, strain, injectedDrift) {
+      const R_nom = calcNominalR(T);
+      // Radiation displacement scattering (krad -> delta Ohms)
+      const radDrift = (rad / 100.0) * 0.045;
+      // Mechanical contact resistance via Holm constriction micro-cracking
+      const strainDrift = Math.pow(strain / 100.0, 1.35) * 0.038;
+      return R_nom + radDrift + strainDrift + injectedDrift;
+    }
+
+    // --- Canvas Physical Visualization Engine ---
+    const canvas = document.getElementById('probeCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width || 640;
+      const h = rect.height || 320;
+      canvas.width = w * window.devicePixelRatio;
+      canvas.height = h * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+
+    // Canvas Draw Animation Loop
+    function drawProbeSimulation() {
+      const rect = canvas.getBoundingClientRect();
+      const width = rect.width || 640;
+      const height = rect.height || 320;
+
+      ctx.clearRect(0, 0, width, height);
+
+      // 1. Draw Lunar Stratified Permafrost Background
+      const gradient = ctx.createLinearGradient(0, 0, 0, height);
+      gradient.addColorStop(0, '#0a0f1d');     // Upper loose regolith
+      gradient.addColorStop(0.35, '#050a14');  // Compacted breccia
+      gradient.addColorStop(1, '#020409');     // Deep cryogenic permafrost (30 K)
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+
+      // Draw faint rock & regolith grain particles
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+      for (let i = 0; i < 60; i++) {
+        const px = ((i * 37) % width);
+        const py = ((i * 73) % height);
+        ctx.fillRect(px, py, (i % 3) + 1, (i % 2) + 1);
+      }
+
+      // Draw Lunar Depth Gradient Isotherms
+      ctx.strokeStyle = 'rgba(6, 182, 212, 0.12)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 6]);
+      for (let d = 50; d < height; d += 60) {
+        ctx.beginPath();
+        ctx.moveTo(0, d);
+        ctx.lineTo(width, d);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+
+      // 2. Draw Titanium Needle Probe (Horizontal Penetration View)
+      const probeY = height / 2 - 28;
+      const probeHeight = 56;
+      const probeStart = 50;
+      const probeLength = width - 130;
+
+      // Titanium Needle Casing Shadow & Body
+      ctx.shadowColor = 'rgba(6, 182, 212, 0.15)';
+      ctx.shadowBlur = 15;
+      
+      const needleGrad = ctx.createLinearGradient(0, probeY, 0, probeY + probeHeight);
+      needleGrad.addColorStop(0, '#334155');
+      needleGrad.addColorStop(0.3, '#1e293b');
+      needleGrad.addColorStop(0.7, '#0f172a');
+      needleGrad.addColorStop(1, '#020617');
+
+      ctx.fillStyle = needleGrad;
+      ctx.beginPath();
+      ctx.roundRect(probeStart, probeY, probeLength, probeHeight, [8, 0, 0, 8]);
+      ctx.fill();
+      ctx.shadowBlur = 0; // reset shadow
+
+      // Chisel-pointed Penetrator Tip (Hammered into permafrost)
+      ctx.fillStyle = '#475569';
+      ctx.beginPath();
+      ctx.moveTo(probeStart + probeLength, probeY);
+      ctx.lineTo(probeStart + probeLength + 45, probeY + (probeHeight / 2));
+      ctx.lineTo(probeStart + probeLength, probeY + probeHeight);
+      ctx.closePath();
+      ctx.fill();
+
+      // Needle Casing Outer Trim
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // 3. Draw Flexible Kapton Carrier with Differential Thermocouple Nodes
+      const kaptonY = probeY + 12;
+      const kaptonH = probeHeight - 24;
+      ctx.fillStyle = 'rgba(180, 83, 9, 0.4)'; // Amber Kapton
+      ctx.fillRect(probeStart + 15, kaptonY, probeLength - 30, kaptonH);
+
+      // Draw 12 pairs of differential thermopile nodes (24 junctions)
+      const numPairs = 12;
+      const stepX = (probeLength - 60) / numPairs;
+
+      for (let j = 0; j < numPairs; j++) {
+        const jX = probeStart + 30 + (j * stepX);
+        const isHot = (j % 2 === 0);
+
+        // Junction leads (thin-film trace lines)
+        ctx.strokeStyle = isHot ? 'rgba(239, 68, 68, 0.6)' : 'rgba(6, 182, 212, 0.6)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(jX, kaptonY + 4);
+        ctx.lineTo(jX + (stepX * 0.7), kaptonY + kaptonH - 4);
+        ctx.stroke();
+
+        // Junction Sputtered Contact Pad
+        ctx.fillStyle = isHot ? '#f87171' : '#38bdf8';
+        ctx.beginPath();
+        ctx.arc(jX, kaptonY + 5, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = !isHot ? '#f87171' : '#38bdf8';
+        ctx.beginPath();
+        ctx.arc(jX + (stepX * 0.7), kaptonY + kaptonH - 5, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Micro-cracking / Strain indicator on damaged junctions if strain is high
+        if (state.hammerStrain > 250 && j === 4) {
+          ctx.strokeStyle = '#fbbf24';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(jX - 4, kaptonY + 3);
+          ctx.lineTo(jX + 4, kaptonY + 7);
+          ctx.stroke();
+        }
+      }
+
+      // 4. Calibration Peltier Rings & Heat Flux Lines
+      if (state.isCalibrating) {
+        // Isothermal Pulse Active Visual (Cyan Glowing Waves)
+        const pulseAlpha = 0.4 + 0.3 * Math.sin(state.simTick * 0.25);
+        ctx.fillStyle = `rgba(6, 182, 212, ${pulseAlpha})`;
+        ctx.strokeStyle = '#06b6d4';
+        ctx.lineWidth = 2;
+
+        // Draw active clamp rings on left & right
+        ctx.fillRect(probeStart + 10, probeY - 4, 18, probeHeight + 8);
+        ctx.strokeRect(probeStart + 10, probeY - 4, 18, probeHeight + 8);
+
+        ctx.fillRect(probeStart + probeLength - 35, probeY - 4, 18, probeHeight + 8);
+        ctx.strokeRect(probeStart + probeLength - 35, probeY - 4, 18, probeHeight + 8);
+
+        // Heat flux balancing lines flowing through the probe
+        ctx.strokeStyle = 'rgba(6, 182, 212, 0.7)';
+        ctx.lineWidth = 1.5;
+        const offset = (state.simTick * 3) % 40;
+        ctx.beginPath();
+        for (let x = probeStart + 35; x < probeStart + probeLength - 40; x += 30) {
+          ctx.moveTo(x + offset, kaptonY + (kaptonH / 2) - 8);
+          ctx.lineTo(x + offset + 12, kaptonY + (kaptonH / 2) + 8);
+        }
+        ctx.stroke();
+      }
+
+      // 5. Dynamic Heat Flux Vector Arrows (Vertical Geothermal Gradient)
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.35)';
+      ctx.fillStyle = 'rgba(245, 158, 11, 0.35)';
+      ctx.lineWidth = 1.5;
+      for (let ax = 80; ax < width - 100; ax += 100) {
+        // Draw small geothermal upward vector
+        const arrowBaseY = probeY + probeHeight + 25;
+        ctx.beginPath();
+        ctx.moveTo(ax, arrowBaseY);
+        ctx.lineTo(ax, arrowBaseY - 14);
+        ctx.stroke();
+        // Arrow head
+        ctx.beginPath();
+        ctx.moveTo(ax - 3, arrowBaseY - 10);
+        ctx.lineTo(ax, arrowBaseY - 15);
+        ctx.lineTo(ax + 3, arrowBaseY - 10);
+        ctx.fill();
+      }
+    }
+
+    // --- Chart.js Instances Setup ---
+    let phaseChart = null;
+    let gradientChart = null;
+    let driftChart = null;
+
+    function initCharts() {
+      // 1. Primary Diagnostic Chart: T vs R Phase Space
+      const ctxPhase = document.getElementById('phaseSpaceChart').getContext('2d');
+      
+      // Generate nominal baseline curve points from T=30K to T=150K
+      const baselineData = [];
+      const hazardUpper = [];
+      for (let t = 30; t <= 150; t += 4) {
+        const rNom = calcNominalR(t);
+        baselineData.push({ x: t, y: rNom });
+        hazardUpper.push({ x: t, y: rNom + 0.5 }); // Hazard limit is +0.5 Ohm drift
+      }
+
+      phaseChart = new Chart(ctxPhase, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            {
+              label: 'Nominal Baseline $(T, R)$',
+              data: baselineData,
+              showLine: true,
+              borderColor: '#06b6d4',
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.2
+            },
+            {
+              label: 'Degradation Boundary (+0.5 $\\Omega$ Hazard Zone)',
+              data: hazardUpper,
+              showLine: true,
+              borderColor: 'rgba(239, 68, 68, 0.7)',
+              borderWidth: 1.5,
+              borderDash: [5, 5],
+              pointRadius: 0,
+              fill: '+1',
+              backgroundColor: 'rgba(239, 68, 68, 0.08)'
+            },
+            {
+              label: 'Live Probe Sensor State',
+              data: [{ x: state.temp, y: 120.48 }],
+              backgroundColor: '#f59e0b',
+              borderColor: '#ffffff',
+              borderWidth: 2,
+              pointRadius: 7,
+              pointHoverRadius: 9
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Needle Temperature T (K)',
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 11 }
+              },
+              grid: { color: 'rgba(30, 41, 59, 0.6)' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } },
+              min: 30,
+              max: 150
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Bulk Resistance R (Ω)',
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 11 }
+              },
+              grid: { color: 'rgba(30, 41, 59, 0.6)' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } }
+            }
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: {
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 10 },
+                boxWidth: 12
+              }
+            }
+          }
+        }
+      });
+
+      // 2. Telemetry 1: Residual Temperature Error (mK)
+      const ctxGrad = document.getElementById('telemetryGradientChart').getContext('2d');
+      gradientChart = new Chart(ctxGrad, {
+        type: 'line',
+        data: {
+          labels: state.timeLabels,
+          datasets: [
+            {
+              label: 'Sub-mK Residual Error (δT)',
+              data: state.errorHistory,
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              borderWidth: 2,
+              pointRadius: 0,
+              fill: true,
+              tension: 0.3
+            },
+            {
+              label: '1.0 mK Science Limit',
+              data: Array(state.historyLength).fill(1.0),
+              borderColor: 'rgba(239, 68, 68, 0.6)',
+              borderWidth: 1,
+              borderDash: [4, 4],
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: {
+              display: false
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Error (mK)',
+                color: '#64748b',
+                font: { family: 'JetBrains Mono', size: 10 }
+              },
+              grid: { color: 'rgba(30, 41, 59, 0.5)' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } },
+              min: 0,
+              max: 3.5
+            }
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 9 }, boxWidth: 10 }
+            }
+          }
+        }
+      });
+
+      // 3. Telemetry 2: Reconstructed Parasitic Lead Resistance (Ohms)
+      const ctxDrift = document.getElementById('telemetryDriftChart').getContext('2d');
+      driftChart = new Chart(ctxDrift, {
+        type: 'line',
+        data: {
+          labels: state.timeLabels,
+          datasets: [
+            {
+              label: 'Extracted Lead Resistance ΔRp (Ω)',
+              data: state.driftHistory,
+              borderColor: '#8b5cf6',
+              backgroundColor: 'rgba(139, 92, 246, 0.12)',
+              borderWidth: 2,
+              pointRadius: 0,
+              fill: true,
+              tension: 0.3
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: {
+              display: false
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'ΔRp (Ω)',
+                color: '#64748b',
+                font: { family: 'JetBrains Mono', size: 10 }
+              },
+              grid: { color: 'rgba(30, 41, 59, 0.5)' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+            }
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 9 }, boxWidth: 10 }
+            }
+          }
+        }
+      });
+    }
+
+    // --- Simulation Step Engine ---
+    function stepSimulation() {
+      state.simTick++;
+
+      // Small natural thermodynamic noise
+      const thermalNoise = (Math.sin(state.simTick * 0.15) * 0.08) + ((Math.random() - 0.5) * 0.04);
+      const activeT = state.temp + thermalNoise;
+
+      // Calculate pure nominal and actual degraded resistance
+      const nominalR = calcNominalR(activeT);
+      const measuredR = calcDegradedR(activeT, state.radiationDose, state.hammerStrain, state.leadDrift);
+
+      // The true total drift delta
+      const totalParasiticDrift = measuredR - nominalR;
+
+      // Handle active isothermal calibration transient cycle
+      if (state.isCalibrating) {
+        state.calibTimer--;
+        // Active firmware subtraction convergence
+        if (state.calibTimer <= 0) {
+          state.isCalibrating = false;
+          // Successfully subtracted parasitic delta
+          state.leadDrift = Math.max(0, state.leadDrift * 0.15); // Zeroed out contact jump
+          document.getElementById('calibPulseIndicator').textContent = "PASSIVE HEAT FLUX MODE";
+          document.getElementById('calibPulseIndicator').className = "px-2 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700";
+          document.getElementById('hudLoopState').textContent = "CALIBRATION CONVERGED";
+          document.getElementById('hudLoopState').className = "text-emerald-400 font-semibold";
+        }
+      }
+
+      // Calculate Sub-mK Error
+      // Without software compensation, parasitic lead drift creates an offset in Seebeck extraction:
+      // delta T_err = (I_bias * delta R_p) / (N * S_AB)
+      let effectiveError_mK = 0;
+      if (state.subtractionActive) {
+        // High-precision recursive extended Kalman observer residual (< 0.25 mK)
+        effectiveError_mK = 0.12 + Math.abs(thermalNoise * 0.9);
+      } else {
+        // Severe drift error without firmware subtraction: 0.1 Ohm drift ~ 0.8 to 2.5 mK error
+        effectiveError_mK = (totalParasiticDrift * 2.8) + 0.18;
+      }
+
+      // Update KPI DOM
+      document.getElementById('kpiTemp').textContent = activeT.toFixed(2);
+      document.getElementById('kpiResistance').textContent = measuredR.toFixed(2);
+      document.getElementById('kpiLeadDrift').textContent = (totalParasiticDrift >= 0 ? '+' : '') + totalParasiticDrift.toFixed(3);
+      document.getElementById('kpiAccuracy').textContent = effectiveError_mK.toFixed(2);
+
+      // Color code KPI status
+      const accuracyEl = document.getElementById('kpiAccuracy');
+      if (effectiveError_mK <= 1.0) {
+        accuracyEl.className = "text-2xl font-bold text-emerald-400 tracking-tight";
+      } else {
+        accuracyEl.className = "text-2xl font-bold text-rose-400 tracking-tight animate-pulse";
+      }
+
+      // Update Time-Series History
+      if (state.timeLabels.length > state.historyLength) {
+        state.timeLabels.shift();
+        state.errorHistory.shift();
+        state.driftHistory.shift();
+      }
+      state.timeLabels.push(state.simTick);
+      state.errorHistory.push(effectiveError_mK);
+      state.driftHistory.push(totalParasiticDrift);
+
+      // Throttled Chart Updates (every 3 ticks for 60fps smoothness)
+      if (state.simTick % 3 === 0) {
+        // Update Live Point on Phase Plot
+        if (phaseChart) {
+          phaseChart.data.datasets[2].data = [{ x: activeT, y: measuredR }];
+          phaseChart.update('none');
+        }
+        if (gradientChart) {
+          gradientChart.update('none');
+        }
+        if (driftChart) {
+          driftChart.update('none');
+        }
+      }
+
+      // Redraw Probe Graphics
+      drawProbeSimulation();
+    }
+
+    // --- Interactive User Controls ---
+    function updateSliders() {
+      state.temp = parseFloat(document.getElementById('sliderTemp').value);
+      state.radiationDose = parseFloat(document.getElementById('sliderRad').value);
+      state.hammerStrain = parseFloat(document.getElementById('sliderStrain').value);
+
+      document.getElementById('sliderTempVal').textContent = state.temp.toFixed(1) + ' K';
+      document.getElementById('sliderRadVal').textContent = state.radiationDose + ' krad';
+      document.getElementById('sliderStrainVal').textContent = state.hammerStrain + ' \u03bc\u03b5';
+
+      document.getElementById('canvasStrainTxt').textContent = state.hammerStrain + ' \u03bc\u03b5 (Needle Hammering Shock)';
+    }
+
+    function injectFault(faultType) {
+      if (faultType === 'strain_shock') {
+        state.hammerStrain = Math.min(800, state.hammerStrain + 350);
+        document.getElementById('sliderStrain').value = state.hammerStrain;
+      } else if (faultType === 'lead_corrosion') {
+        state.leadDrift += 0.42;
+      } else if (faultType === 'solar_flare') {
+        state.radiationDose = Math.min(600, state.radiationDose + 200);
+        document.getElementById('sliderRad').value = state.radiationDose;
+      }
+      updateSliders();
+
+      // Alert feedback badge
+      const statusEl = document.getElementById('globalSysStatus');
+      statusEl.textContent = "DRIFT OBSERVER: ANOMALY ISOLATED";
+      statusEl.parentElement.className = "flex items-center space-x-2 bg-amber-950/70 border border-amber-800 px-3 py-1 rounded-full text-amber-400 text-xs font-mono";
+      
+      setTimeout(() => {
+        statusEl.textContent = "AUTONOMOUS OBSERVER: ONLINE";
+        statusEl.parentElement.className = "flex items-center space-x-2 bg-emerald-950/60 border border-emerald-800/60 px-3 py-1 rounded-full text-emerald-400 text-xs font-mono";
+      }, 4000);
+    }
+
+    function triggerAutoCalibrate() {
+      state.isCalibrating = true;
+      state.calibTimer = 45; // ~2 seconds of calibration pulse
+      
+      document.getElementById('calibPulseIndicator').textContent = "PELTIER ISOTHERMAL LOOP ACTIVE";
+      document.getElementById('calibPulseIndicator').className = "px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 animate-pulse";
+      document.getElementById('hudLoopState').textContent = "EXTRACTING CALLENDAR POLYNOMIALS";
+      document.getElementById('hudLoopState').className = "text-cyan-400 font-semibold";
+    }
+
+    function resetNominalBaseline() {
+      state.leadDrift = 0.0;
+      state.hammerStrain = 120.0;
+      state.radiationDose = 100.0;
+      state.temp = 42.0;
+
+      document.getElementById('sliderTemp').value = 42;
+      document.getElementById('sliderRad').value = 100;
+      document.getElementById('sliderStrain').value = 120;
+      updateSliders();
+    }
+
+    function toggleLoopCompensation() {
+      state.subtractionActive = !state.subtractionActive;
+      const btn = document.getElementById('btnCompensationMode');
+      if (state.subtractionActive) {
+        btn.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span><span>Firmware Drift Subtraction: ENABLED</span>`;
+        btn.className = "ml-auto px-3.5 py-1 bg-emerald-950/70 border border-emerald-700 text-emerald-300 rounded-lg text-xs font-mono transition-all flex items-center space-x-1.5";
+      } else {
+        btn.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span><span>Firmware Drift Subtraction: DISABLED</span>`;
+        btn.className = "ml-auto px-3.5 py-1 bg-rose-950/70 border border-rose-700 text-rose-300 rounded-lg text-xs font-mono transition-all flex items-center space-x-1.5";
+      }
+    }
+
+    // --- Window Initialization & Event Binding ---
+    window.onload = function () {
+      // Initialize Lucide Icons
+      if (window.lucide) {
+        lucide.createIcons();
+      }
+
+      // Size canvas and setup charts
+      resizeCanvas();
+      initCharts();
+
+      // Start Real-Time Simulation Interval (40ms = 25 FPS)
+      setInterval(stepSimulation, 40);
+
+      // Handle Window Resize Responsiveness
+      window.addEventListener('resize', () => {
+        resizeCanvas();
+      });
+    };
+  </script>
+</body>
+</html>
